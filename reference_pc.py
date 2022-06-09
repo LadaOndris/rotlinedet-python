@@ -1,9 +1,14 @@
 import argparse
+import cProfile
+import io
+import pstats
 import time
 
 import cv2
 
 from core import process_frame
+
+profile = cProfile.Profile()
 
 
 def parse_args():
@@ -16,6 +21,7 @@ def parse_args():
                         help='stop processing prematurely after N frames (default: 0), 0 means no limit')
     parser.add_argument('-r', metavar='R', type=float, dest='rotation_step', action='store', default=1,
                         help='rotation step in degrees (default: 1), 1 means 180 rotations')
+    parser.add_argument('-p', '--profile', dest='is_profiling_enabled', action='store_true')
     args = parser.parse_args()
 
     if args.loops < 1:
@@ -66,7 +72,7 @@ def print_statistics(start_time, end_time, frames):
 
 
 def start_processing_loop(input_provider: InputProvider, max_frames: int,
-                          rotation_step: int) -> int:
+                          rotation_step: int, is_profiling_enabled: bool) -> int:
     print(F"Processing max frames: {max_frames}")
     print(F"Rotation step is: {rotation_step}")
 
@@ -75,18 +81,24 @@ def start_processing_loop(input_provider: InputProvider, max_frames: int,
         frame = input_provider.next_frame()
         if frame is None:
             break
+
+        if is_profiling_enabled:
+            profile.enable()
         process_frame(frame, rotation_step)
+        if is_profiling_enabled:
+            profile.disable()
+
         processed_frames += 1
     return processed_frames
 
 
 def start_processing(input_provider: InputProvider, max_frames: int,
-                     rotation_step: int) -> None:
+                     rotation_step: int, profile: bool) -> None:
     start_time = time.time()
     processed_frames = 0
 
     try:
-        processed_frames = start_processing_loop(input_provider, max_frames, rotation_step)
+        processed_frames = start_processing_loop(input_provider, max_frames, rotation_step, profile)
     except KeyboardInterrupt:
         print("Interrupted! Ending ...")
 
@@ -94,7 +106,18 @@ def start_processing(input_provider: InputProvider, max_frames: int,
     print_statistics(start_time, end_time, processed_frames)
 
 
+def print_profiling_result():
+    s = io.StringIO()
+    ps = pstats.Stats(profile, stream=s).sort_stats('cumulative')
+    ps.print_stats()
+    print(s.getvalue())
+
+
 if __name__ == "__main__":
     args = parse_args()
     input_provider = InputProvider(args.input, args.loops)
-    start_processing(input_provider, args.max_frames, args.rotation_step)
+
+    start_processing(input_provider, args.max_frames, args.rotation_step, args.is_profiling_enabled)
+
+    if args.is_profiling_enabled:
+        print_profiling_result()
