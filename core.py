@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
+from rotation import shear_image
+
 
 def pad_image(image: np.ndarray) -> np.ndarray:
     img_width = image.shape[1]
@@ -91,7 +93,8 @@ def select_peak(array: np.ndarray):
 
 
 def print_line_params(peak_col, peak_value, rotation_angle, metric):
-    print(F"Peak col: {peak_col}, rotation: {rotation_angle} [degs], peak value: {peak_value:.2f}, metric: {metric:.1f}.")
+    print(
+        F"Peak col: {peak_col}, rotation: {rotation_angle} [degs], peak value: {peak_value:.2f}, metric: {metric:.1f}.")
 
 
 def get_peaks_at_local_extremes(orig_column_sum, averaged_column_sum, thres: float, filter_size: int) -> np.ndarray:
@@ -117,15 +120,17 @@ def process_frame(frame, rotation_step: int) -> None:
     removed_outliers = remove_extreme_intensities(gray)
     padded = pad_image(removed_outliers)
 
-    plot = False
+    plot = True
     filter_size = 40
     peak_slope_thres = 0.05
     rotation_angles = np.arange(-90, 90, rotation_step)
     # rotation_angles = np.array([39.5, 65, 0])
     # rotation_angles = np.array([65, 39.5, 56.5, -78, -1, 1, 2, 3, 4, ])
     # rotation_angles = np.array([-70, -70.7, -70.8, -70.85, -70.9, -71, -71.2, -72, -72.5, -73])
-    # rotation_angles = np.array([-45, -46, -47, -48, -49, -50])
+    rotation_angles = np.array([-45, -46, -47, -48, -49, -50])
     # rotation_angles = np.array([-78, -79, -80, -81, -82])
+    max_metric_rot = None
+    max_metric = 0
 
     for angle in rotation_angles.flat:
         rotated = rotate_image(padded, angle)
@@ -134,6 +139,9 @@ def process_frame(frame, rotation_step: int) -> None:
         peaks = get_peaks_at_local_extremes(column_sum, averaged_column_sum, peak_slope_thres, filter_size)
         peak_col, metric = select_peak(peaks)
         print_line_params(peak_col, peaks[peak_col], angle, metric)
+        if metric > max_metric:
+            max_metric = metric
+            max_metric_rot = angle
 
         if plot:
             fig, ax = plt.subplots(figsize=(6, 4))
@@ -147,11 +155,17 @@ def process_frame(frame, rotation_step: int) -> None:
             fig.tight_layout()
             fig.show()
 
-            rotated_rgb = cv2.cvtColor(rotated, cv2.COLOR_GRAY2RGB)
-            rotated_rgb = cv2.line(rotated_rgb, (peak_col, 0), (peak_col, rotated_rgb.shape[0]), color=[200, 10, 10], thickness=3)
-            # rotated_rgb[:, peak_col] = np.array([200, 10, 10])
             fig, ax = plt.subplots(figsize=(6, 6))
-            ax.imshow(rotated_rgb)
+            ax.imshow(rotated, cmap='gray')
             fig.tight_layout()
             fig.show()
-            pass
+
+            # rotated_rgb = cv2.cvtColor(rotated, cv2.COLOR_GRAY2RGB)
+            # rotated_rgb = cv2.line(rotated_rgb, (peak_col, 0), (peak_col, rotated_rgb.shape[0]), color=[200, 10, 10],
+            #                        thickness=3)
+            # # rotated_rgb[:, peak_col] = np.array([200, 10, 10])
+            # fig, ax = plt.subplots(figsize=(6, 6))
+            # ax.imshow(rotated_rgb)
+            # fig.tight_layout()
+            # fig.show()
+    print(f'Max metric: {max_metric} at {max_metric_rot}°')
