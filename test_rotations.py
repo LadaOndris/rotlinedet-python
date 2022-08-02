@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from rotation import get_shear_shifts
+from rotations import get_shear_shifts
 
 
 class Test(TestCase):

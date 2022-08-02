@@ -70,5 +70,4 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.imshow(sheared, cmap='gray')
     fig.tight_layout()
-    fig.savefig('sheared_1deg.png')
     fig.show()

@@ -27,7 +27,7 @@ def parse_args():
     if args.loops < 1:
         args.loops = 1
     if args.max_frames < 1:
-        args.max_frames = 0
+        args.max_frames = 1
 
     return args
 
