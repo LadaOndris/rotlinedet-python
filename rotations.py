@@ -25,9 +25,9 @@ def shift_rows(image, shifts) -> np.ndarray:
 def shear_image_opencv(image, angle):
     (h, w) = image.shape[:2]
     shear = math.tan(angle)
-    M = np.float64([[1, shear, 0],
-                    [0, 1, 0]])
-    sheared_image = cv2.warpAffine(image, M, (w, h))
+    shear_matrix = np.float64([[1, shear, 0],
+                               [0, 1, 0]])
+    sheared_image = cv2.warpAffine(image, shear_matrix, (w, h))
     return sheared_image
 
 
@@ -60,7 +60,7 @@ def shear_image(image: np.ndarray, angle_degs: float) -> np.ndarray:
 
 if __name__ == "__main__":
     arr = np.ones([2713, 4096], dtype=np.uint8)
-    arr[2713-300:2713-200, :] = 2
+    arr[2713 - 300:2713 - 200, :] = 2
     # arr_padded = np.pad(arr, [[0, 0], [4800, 4800]])
     # sheared = shear_image(arr, 30)
     st = time.time()

@@ -7,7 +7,8 @@ from rotations import get_shear_shifts
 
 class Test(TestCase):
 
-    def degs2rads(self, angle_degs: int) -> float:
+    @staticmethod
+    def degs2rads(angle_degs: int) -> float:
         return angle_degs / 180 * np.pi
 
     def test_get_shear_shifts_45_degrees(self):

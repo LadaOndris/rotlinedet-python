@@ -93,12 +93,12 @@ def start_processing_loop(input_provider: InputProvider, max_frames: int,
 
 
 def start_processing(input_provider: InputProvider, max_frames: int,
-                     rotation_step: int, profile: bool) -> None:
+                     rotation_step: int, is_profiling_enabled: bool) -> None:
     start_time = time.time()
     processed_frames = 0
 
     try:
-        processed_frames = start_processing_loop(input_provider, max_frames, rotation_step, profile)
+        processed_frames = start_processing_loop(input_provider, max_frames, rotation_step, is_profiling_enabled)
     except KeyboardInterrupt:
         print("Interrupted! Ending ...")
 
@@ -114,10 +114,10 @@ def print_profiling_result():
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    input_provider = InputProvider(args.input, args.loops)
+    arguments = parse_args()
+    provider = InputProvider(arguments.input, arguments.loops)
 
-    start_processing(input_provider, args.max_frames, args.rotation_step, args.is_profiling_enabled)
+    start_processing(provider, arguments.max_frames, arguments.rotation_step, arguments.is_profiling_enabled)
 
-    if args.is_profiling_enabled:
+    if arguments.is_profiling_enabled:
         print_profiling_result()

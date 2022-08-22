@@ -48,8 +48,8 @@ def rotate_image(image: np.ndarray, angle_degs: float) -> np.ndarray:
     (h, w) = image.shape[:2]
     (cX, cY) = (w // 2, h // 2)
 
-    M = cv2.getRotationMatrix2D((cX, cY), angle_degs, 1.0)
-    rotated_image = cv2.warpAffine(image, M, (w, h))
+    rotation_matrix = cv2.getRotationMatrix2D((cX, cY), angle_degs, 1.0)
+    rotated_image = cv2.warpAffine(image, rotation_matrix, (w, h))
     return rotated_image
 
 
@@ -69,10 +69,10 @@ def sum_columns(image: np.ndarray, min_nonzero_counts: int) -> np.ndarray:
 
 
 def convolve_average(array: np.ndarray, filter_size: int) -> np.ndarray:
-    filter = np.ones([filter_size], dtype=float)
-    filter /= np.sum(np.abs(filter))
+    averaging_filter = np.ones([filter_size], dtype=float)
+    averaging_filter /= np.sum(np.abs(averaging_filter))
 
-    convolved_average = np.convolve(array, filter, mode='same')
+    convolved_average = np.convolve(array, averaging_filter, mode='same')
     return convolved_average
 
 
@@ -101,10 +101,10 @@ def get_peaks_at_local_extremes(orig_column_sum, averaged_column_sum, thres: flo
 
     # Slopes
     slope_pixels = filter_size // 2
-    dY = np.roll(averaged_column_sum, -slope_pixels, axis=0) - np.roll(averaged_column_sum, slope_pixels, axis=0)
-    dY[:slope_pixels] = np.inf
-    dY[-slope_pixels:] = np.inf
-    slopes = np.abs(dY)
+    dy = np.roll(averaged_column_sum, -slope_pixels, axis=0) - np.roll(averaged_column_sum, slope_pixels, axis=0)
+    dy[:slope_pixels] = np.inf
+    dy[-slope_pixels:] = np.inf
+    slopes = np.abs(dy)
 
     # Filter using slopes
     slopes_mask = slopes < thres
