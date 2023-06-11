@@ -14,19 +14,22 @@ class DataLoader:
     def __init__(self, images_path: str, stripe_width: int,
                  line_width_range: Tuple[int, int],
                  intensity_range: Tuple[int, int],
-                 length_range: Tuple[float, float]):
+                 length_range: Tuple[float, float],
+                 target_image_height: int):
         """
         :param images_path: Path to a folder with images that should be used for generating the dataset.
         :param stripe_width: The width of the cropped vertical stripe from the rotated image.
         :param line_width_range: Min and max width of the generated line in number of pixels.
         :param intensity_range: Min and max intensity, in the [0, 255] range.
         :param length_range: Min and max length, in the [0, 1] range.
+        :param target_image_height: Determines the height of the image.
         """
         self.images_path = images_path
         self.stripe_width = stripe_width
         self.line_width_range = line_width_range
         self.intensity_range = intensity_range
         self.length_range = length_range
+        self.target_image_height = target_image_height
 
     # def build_pipeline(self):
     #     # Reads images from the corresponding folder
@@ -82,6 +85,9 @@ class DataLoader:
         rotation_angle = tf.random.uniform(shape=[], minval=0, maxval=2 * 3.14159)
         return tfa.image.rotate(image, rotation_angle)
 
+    def _resize_image(self, image):
+        return tf.image.resize(image, size=(self.target_image_height, self.target_image_height))
+
     def _crop_vertical_stripe(self, image):
         height = tf.shape(image)[0]
         width = tf.shape(image)[1]
@@ -108,12 +114,13 @@ class DataLoader:
         pad_left = width_to_pad // 2
         pad_right = width_to_pad - pad_left
         line = tf.pad(line, [[0, 0], [pad_left, pad_right], [0, 0]])
-        return image + tf.cast(line, tf.uint8)
+        return image + line
 
     def _preprocess_image(self, image_path):
         image = self._parse_image(image_path)
         image = self._pad_image(image)
         image = self._rotate_image(image)
+        image = self._resize_image(image)
         image = self._crop_vertical_stripe(image)
         has_line = tf.random.uniform(shape=[], minval=0, maxval=1) > 0.5
         if has_line:
@@ -128,6 +135,7 @@ class DataLoader:
         num_samples = len(image_files)
 
         dataset = tf.data.Dataset.from_tensor_slices(image_files)
+        dataset = dataset.repeat()
         dataset = dataset.shuffle(num_samples)
         dataset = dataset.map(self._preprocess_image, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         dataset = dataset.batch(batch_size)
@@ -144,7 +152,8 @@ if __name__ == "__main__":
                              stripe_width=150,
                              line_width_range=(4, 16),
                              length_range=(0.33, 1),
-                             intensity_range=(16, 128))
+                             intensity_range=(16, 128),
+                             target_image_height=640)
 
     # Build the dataset pipeline
     dataset = data_loader.build_pipeline(batch_size)
