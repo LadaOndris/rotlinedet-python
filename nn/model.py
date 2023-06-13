@@ -3,7 +3,7 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 from tensorflow.keras import layers
 
-from nn.data_loader import DataLoader
+from nn.infinite_data_loader import DataLoader
 
 
 def get_model(image_size):

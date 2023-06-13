@@ -54,7 +54,7 @@ class DataLoader:
         image = tf.image.decode_jpeg(image, channels=3)
         return image
 
-    def _pad_image(self, image):
+    def _pad_image(self, image, parsed):
         img_height = tf.shape(image)[0]
         img_width = tf.shape(image)[1]
 
@@ -71,7 +71,13 @@ class DataLoader:
                       [horizontal_pad_half, horizontal_pad - horizontal_pad_half],
                       [0, 0]]
         padded = tf.pad(image, pad_values, constant_values=0)
-        return padded
+
+        # Translate the points
+        parsed['point1_x'] += horizontal_pad_half
+        parsed['point2_x'] += horizontal_pad_half
+        parsed['point1_y'] += vertical_pad_half
+        parsed['point2_y'] += vertical_pad_half
+        return padded, parsed
 
     def _rotate_image(self, image, parsed):
         rotation_angle = parsed['angle']
@@ -82,7 +88,18 @@ class DataLoader:
         else:
             label = 1  # Line present
         rotated_image = tfa.image.rotate(image, rotation_angle)
-        return rotated_image, label
+
+        point = (parsed['point2_x'], parsed['point2_y'])
+        rotated_point = self._rotate_point(point, parsed['angle'])
+        parsed['point2_x'] = rotated_point[0]
+        parsed['point2_y'] = rotated_point[1]
+
+        point = (parsed['point1_x'], parsed['point1_y'])
+        rotated_point = self._rotate_point(point, parsed['angle'])
+        parsed['point1_x'] = rotated_point[0]
+        parsed['point1_y'] = rotated_point[1]
+
+        return rotated_image, label, parsed
 
     def _crop_stripe(self, image, parsed):
         """
@@ -96,15 +113,17 @@ class DataLoader:
         point = (parsed['point2_x'], parsed['point2_y'])
         rotated_point = self._rotate_point(point, parsed['angle'])
         line_x = tf.cast(rotated_point[0], tf.int32)
+        img_height = tf.shape(image)[0]
 
-        factor = parsed['img_height'] / self.target_image_height
+        factor = img_height / self.target_image_height
         target_stripe_width = tf.cast(self.stripe_width / factor, tf.int32)
         half_stripe_width = tf.cast(tf.round(target_stripe_width // 2), tf.int32)
-        tf.print(line_x, half_stripe_width)
+
+        #
         # TODO: crop line x
         offset_width = line_x - half_stripe_width
         offset_height = 0  # Crop the whole vertical portion
-        target_height = parsed['img_height']
+        target_height = img_height
         target_width = target_stripe_width
         cropped_image = tf.image.crop_to_bounding_box(image, offset_height, offset_width,
                                                       target_height, target_width)
@@ -134,8 +153,8 @@ class DataLoader:
     def _preprocess_image(self, filepath):
         parsed = self._parse_image_filename(filepath)
         image = self._load_image(parsed)
-        image = self._pad_image(image)
-        rotated_image, label = self._rotate_image(image, parsed)
+        image, parsed = self._pad_image(image, parsed)
+        rotated_image, label, parsed = self._rotate_image(image, parsed)
         cropped_image = self._crop_stripe(rotated_image, parsed)
         resized_image = self._resize_stripe(cropped_image)
         return resized_image, label

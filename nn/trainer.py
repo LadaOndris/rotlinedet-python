@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from nn.data_loader import DataLoader
+from nn.infinite_data_loader import DataLoader
 from nn.model import get_model
 
 
