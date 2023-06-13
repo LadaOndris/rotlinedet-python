@@ -1,4 +1,5 @@
 import glob
+import math
 
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -33,17 +34,19 @@ class DataLoader:
         parameters = {
             'width': tf.strings.to_number(self._substring_from(parts[0], 1), out_type=tf.int32),
             'length': tf.strings.to_number(self._substring_from(parts[1], 1), out_type=tf.int32),
-            'point1_x': tf.strings.to_number(self._substring_from(parts[2], 1), out_type=tf.int32),
-            'point1_y': tf.strings.to_number(self._substring_from(parts[3], 1), out_type=tf.int32),
-            'point2_x': tf.strings.to_number(self._substring_from(parts[4], 1), out_type=tf.int32),
-            'point2_y': tf.strings.to_number(self._substring_from(parts[5], 1), out_type=tf.int32),
+            'point1_x': tf.strings.to_number(self._substring_from(parts[2], 2), out_type=tf.int32),
+            'point1_y': tf.strings.to_number(self._substring_from(parts[3], 2), out_type=tf.int32),
+            'point2_x': tf.strings.to_number(self._substring_from(parts[4], 2), out_type=tf.int32),
+            'point2_y': tf.strings.to_number(self._substring_from(parts[5], 2), out_type=tf.int32),
             'img_width': tf.strings.to_number(parts[6], out_type=tf.int32),
             'img_height': tf.strings.to_number(parts[7], out_type=tf.int32),
             'filepath': filepath
         }
+        # Angle to rotate it into horizontal position
         rotation_angle = tf.atan2(tf.cast(parameters['point2_y'] - parameters['point1_y'], tf.float32),
                                   tf.cast(parameters['point2_x'] - parameters['point1_x'], tf.float32))
-        parameters['angle'] = rotation_angle
+        # Move to vertical from horizontal
+        parameters['angle'] = rotation_angle + math.pi / 2
         return parameters
 
     def _substring_from(self, string, pos):
@@ -110,17 +113,15 @@ class DataLoader:
         height is resized to `target_image_height`, the stripe width
         will be `stripe_width` (ratio needs to be maintained).
         """
-        point = (parsed['point2_x'], parsed['point2_y'])
-        rotated_point = self._rotate_point(point, parsed['angle'])
-        line_x = tf.cast(rotated_point[0], tf.int32)
+        line_x = tf.cast(parsed['point2_x'], tf.int32)
         img_height = tf.shape(image)[0]
 
-        factor = img_height / self.target_image_height
-        target_stripe_width = tf.cast(self.stripe_width / factor, tf.int32)
+        # Determine the stripe width (before image resizing)
+        factor = tf.cast(img_height, tf.float32) / self.target_image_height
+        target_stripe_width = tf.cast(self.stripe_width * factor, tf.int32)
         half_stripe_width = tf.cast(tf.round(target_stripe_width // 2), tf.int32)
 
-        #
-        # TODO: crop line x
+        # Crop the vertical stripe
         offset_width = line_x - half_stripe_width
         offset_height = 0  # Crop the whole vertical portion
         target_height = img_height
@@ -172,7 +173,7 @@ class DataLoader:
 if __name__ == "__main__":
     images_path = 'data/testdataset/i*/*'
     stripe_width = 32
-    target_image_height = 64
+    target_image_height = 640
     batch_size = 16
 
     loader = DataLoader(images_path, stripe_width, target_image_height)
@@ -183,6 +184,7 @@ if __name__ == "__main__":
             image = images[i].numpy().astype(int)
             label = labels[i].numpy()
 
+            plt.figure(figsize=(4, 10))
             plt.imshow(image)
             plt.title("Label: {}".format(label))
             plt.axis("off")
