@@ -34,17 +34,21 @@ class DataLoader:
         parameters = {
             'width': tf.strings.to_number(self._substring_from(parts[0], 1), out_type=tf.int32),
             'length': tf.strings.to_number(self._substring_from(parts[1], 1), out_type=tf.int32),
-            'point1_x': tf.strings.to_number(self._substring_from(parts[2], 2), out_type=tf.int32),
-            'point1_y': tf.strings.to_number(self._substring_from(parts[3], 2), out_type=tf.int32),
-            'point2_x': tf.strings.to_number(self._substring_from(parts[4], 2), out_type=tf.int32),
-            'point2_y': tf.strings.to_number(self._substring_from(parts[5], 2), out_type=tf.int32),
             'img_width': tf.strings.to_number(parts[6], out_type=tf.int32),
             'img_height': tf.strings.to_number(parts[7], out_type=tf.int32),
             'filepath': filepath
         }
+        parameters['point1'] = tf.stack([
+            tf.strings.to_number(self._substring_from(parts[2], 2), out_type=tf.int32),
+            tf.strings.to_number(self._substring_from(parts[3], 2), out_type=tf.int32)])
+        parameters['point2'] = tf.stack([
+            tf.strings.to_number(self._substring_from(parts[4], 2), out_type=tf.int32),
+            tf.strings.to_number(self._substring_from(parts[5], 2), out_type=tf.int32)])
+
         # Angle to rotate it into horizontal position
-        rotation_angle = tf.atan2(tf.cast(parameters['point2_y'] - parameters['point1_y'], tf.float32),
-                                  tf.cast(parameters['point2_x'] - parameters['point1_x'], tf.float32))
+        points_diff = tf.cast(parameters['point2'] - parameters['point1'], tf.float32)
+        rotation_angle = tf.atan2(points_diff[1], points_diff[0])
+
         # Move to vertical from horizontal
         parameters['angle'] = rotation_angle + math.pi / 2
         return parameters
@@ -65,9 +69,9 @@ class DataLoader:
         diagonal = tf.math.sqrt(tf.math.square(tf.cast(img_height, tf.float32)) +
                                 tf.math.square(tf.cast(img_width, tf.float32)))
         diagonal = tf.cast(tf.math.ceil(diagonal), tf.int32)
-        vertical_pad = diagonal - img_height + 110
+        vertical_pad = diagonal - img_height
         vertical_pad_half = vertical_pad // 2
-        horizontal_pad = diagonal - img_width + 110
+        horizontal_pad = diagonal - img_width
         horizontal_pad_half = horizontal_pad // 2
 
         pad_values = [[vertical_pad_half, vertical_pad - vertical_pad_half],
@@ -76,15 +80,13 @@ class DataLoader:
         padded = tf.pad(image, pad_values, constant_values=0)
 
         # Translate the points
-        parsed['point1_x'] += horizontal_pad_half
-        parsed['point2_x'] += horizontal_pad_half
-        parsed['point1_y'] += vertical_pad_half
-        parsed['point2_y'] += vertical_pad_half
+        parsed['point1'] += tf.stack([horizontal_pad_half, vertical_pad_half])
+        parsed['point2'] += tf.stack([horizontal_pad_half, vertical_pad_half])
         return padded, parsed
 
     def _rotate_image(self, image, parsed):
         rotation_angle = parsed['angle']
-        generate_no_line_sample = tf.random.uniform(shape=[], minval=0, maxval=1) > 1.5
+        generate_no_line_sample = tf.random.uniform(shape=[], minval=0, maxval=1) > 0.5
         if generate_no_line_sample:
             rotation_angle = tf.random.uniform(shape=[], minval=0, maxval=2 * 3.14159)
             label = 0  # Line absent
@@ -93,15 +95,8 @@ class DataLoader:
         rotated_image = tfa.image.rotate(image, rotation_angle)
 
         image_center = tf.cast(tf.shape(image)[:2] / 2, tf.int32)
-        point = tf.stack([parsed['point2_x'], parsed['point2_y']])
-        rotated_point = self.rotate_point_around_center(point, image_center, parsed['angle'])
-        parsed['point2_x'] = rotated_point[0]
-        parsed['point2_y'] = rotated_point[1]
-
-        point = tf.stack([parsed['point1_x'], parsed['point1_y']])
-        rotated_point = self.rotate_point_around_center(point, image_center, parsed['angle'])
-        parsed['point1_x'] = rotated_point[0]
-        parsed['point1_y'] = rotated_point[1]
+        parsed['point2'] = self.rotate_point_around_center(parsed['point2'], image_center, parsed['angle'])
+        parsed['point1'] = self.rotate_point_around_center(parsed['point1'], image_center, parsed['angle'])
 
         return rotated_image, label, parsed
 
@@ -114,7 +109,7 @@ class DataLoader:
         height is resized to `target_image_height`, the stripe width
         will be `stripe_width` (ratio needs to be maintained).
         """
-        line_x = tf.cast(parsed['point2_x'], tf.int32)
+        line_x = tf.cast(parsed['point2'][0], tf.int32)
         img_height = tf.shape(image)[0]
 
         # Determine the stripe width (before image resizing)
@@ -165,7 +160,7 @@ class DataLoader:
         rotated_image, label, parsed = self._rotate_image(image, parsed)
         cropped_image = self._crop_stripe(rotated_image, parsed)
         resized_image = self._resize_stripe(cropped_image)
-        return (rotated_image, resized_image), label
+        return resized_image, label
 
     def build_pipeline(self, batch_size: int):
         image_files = glob.glob(self.images_path)
@@ -200,6 +195,5 @@ if __name__ == "__main__":
 
     for images, labels in dataset:
         for i in range(batch_size):
-            plot_image(images[0][i], labels[i])
-            plot_image(images[1][i], labels[i])
+            plot_image(images[i], labels[i])
         break  # Stop after the first batch
