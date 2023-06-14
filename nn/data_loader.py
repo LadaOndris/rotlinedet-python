@@ -65,9 +65,9 @@ class DataLoader:
         diagonal = tf.math.sqrt(tf.math.square(tf.cast(img_height, tf.float32)) +
                                 tf.math.square(tf.cast(img_width, tf.float32)))
         diagonal = tf.cast(tf.math.ceil(diagonal), tf.int32)
-        vertical_pad = diagonal - img_height
+        vertical_pad = diagonal - img_height + 110
         vertical_pad_half = vertical_pad // 2
-        horizontal_pad = diagonal - img_width
+        horizontal_pad = diagonal - img_width + 110
         horizontal_pad_half = horizontal_pad // 2
 
         pad_values = [[vertical_pad_half, vertical_pad - vertical_pad_half],
@@ -84,7 +84,7 @@ class DataLoader:
 
     def _rotate_image(self, image, parsed):
         rotation_angle = parsed['angle']
-        generate_no_line_sample = tf.random.uniform(shape=[], minval=0, maxval=1) > 0.5
+        generate_no_line_sample = tf.random.uniform(shape=[], minval=0, maxval=1) > 1.5
         if generate_no_line_sample:
             rotation_angle = tf.random.uniform(shape=[], minval=0, maxval=2 * 3.14159)
             label = 0  # Line absent
@@ -92,13 +92,14 @@ class DataLoader:
             label = 1  # Line present
         rotated_image = tfa.image.rotate(image, rotation_angle)
 
-        point = (parsed['point2_x'], parsed['point2_y'])
-        rotated_point = self._rotate_point(point, parsed['angle'])
+        image_center = tf.cast(tf.shape(image)[:2] / 2, tf.int32)
+        point = tf.stack([parsed['point2_x'], parsed['point2_y']])
+        rotated_point = self.rotate_point_around_center(point, image_center, parsed['angle'])
         parsed['point2_x'] = rotated_point[0]
         parsed['point2_y'] = rotated_point[1]
 
-        point = (parsed['point1_x'], parsed['point1_y'])
-        rotated_point = self._rotate_point(point, parsed['angle'])
+        point = tf.stack([parsed['point1_x'], parsed['point1_y']])
+        rotated_point = self.rotate_point_around_center(point, image_center, parsed['angle'])
         parsed['point1_x'] = rotated_point[0]
         parsed['point1_y'] = rotated_point[1]
 
@@ -130,9 +131,15 @@ class DataLoader:
                                                       target_height, target_width)
         return cropped_image
 
+    def rotate_point_around_center(self, point, center, angle):
+        centered_point = point - center
+        rotated_centered_point = self._rotate_point(centered_point, angle)
+        rotated_point = tf.cast(rotated_centered_point, tf.int32) + center
+        return rotated_point
+
     def _rotate_point(self, point, angle):
         """
-        Rotate a 2D point by a specified angle.
+        Rotate a 2D point by a specified angle clockwise.
 
         :param point: A tensor representing the 2D point with shape (2,).
         :param angle: The angle of rotation in radians.
@@ -142,8 +149,8 @@ class DataLoader:
         y = tf.cast(point[1], tf.float32)
         cos_angle = tf.cos(angle)
         sin_angle = tf.sin(angle)
-        rotated_x = x * cos_angle - y * sin_angle
-        rotated_y = x * sin_angle + y * cos_angle
+        rotated_x = x * cos_angle + y * sin_angle
+        rotated_y = - x * sin_angle + y * cos_angle
         rotated_point = tf.stack([rotated_x, rotated_y])
         return rotated_point
 
@@ -158,7 +165,7 @@ class DataLoader:
         rotated_image, label, parsed = self._rotate_image(image, parsed)
         cropped_image = self._crop_stripe(rotated_image, parsed)
         resized_image = self._resize_stripe(cropped_image)
-        return resized_image, label
+        return (rotated_image, resized_image), label
 
     def build_pipeline(self, batch_size: int):
         image_files = glob.glob(self.images_path)
@@ -170,25 +177,29 @@ class DataLoader:
         return dataset
 
 
+def plot_image(img, label):
+    image = img.numpy().astype(int)
+    label = label.numpy()
+
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image)
+    plt.title("Label: {}".format(label))
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
-    images_path = 'data/testdataset/i*/*'
+    images_path = 'data/testdataset/i128/*'
     stripe_width = 32
     target_image_height = 640
-    batch_size = 16
+    batch_size = 4
 
     loader = DataLoader(images_path, stripe_width, target_image_height)
     dataset = loader.build_pipeline(batch_size)
 
     for images, labels in dataset:
         for i in range(batch_size):
-            image = images[i].numpy().astype(int)
-            label = labels[i].numpy()
-
-            plt.figure(figsize=(4, 10))
-            plt.imshow(image)
-            plt.title("Label: {}".format(label))
-            plt.axis("off")
-            plt.tight_layout()
-            plt.show()
-
+            plot_image(images[0][i], labels[i])
+            plot_image(images[1][i], labels[i])
         break  # Stop after the first batch
