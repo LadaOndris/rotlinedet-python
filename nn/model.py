@@ -3,17 +3,17 @@ import tensorflow as tf
 from matplotlib import pyplot as plt
 from tensorflow.keras import layers
 
-from nn.infinite_data_loader import DataLoader
+from nn.data_loader import DataLoader
 
 
-def get_model(image_size):
+def get_model(image_size, channels: int):
     """
     Creates a convolutional network that processes the input images
     with various filter sizes in the first layer. Then, it
     combines all results together, and processes it with
     a dense layer, resulting in a single prediction value.
     """
-    input_shape = (image_size[0], image_size[1], 3)  # Input shape for variable-sized images
+    input_shape = (image_size[0], image_size[1], channels)  # Input shape for variable-sized images
 
     # Input layer
     inputs = tf.keras.Input(shape=input_shape)
@@ -46,15 +46,13 @@ def get_model(image_size):
 if __name__ == "__main__":
     stripe_width = 45
     image_height = 480
-    data_loader = DataLoader('data/without_laser/train',
+    data_loader = DataLoader('data/testdataset/i128/*',
                              stripe_width=stripe_width,
-                             line_width_range=(1, 12),
-                             length_range=(0.33, 1),
-                             intensity_range=(16, 128),
-                             target_image_height=image_height)
+                             target_image_height=image_height,
+                             convert_to_grayscale=True)
     dataset = data_loader.build_pipeline(batch_size=1)
 
-    model = get_model(image_size=(image_height, stripe_width))
+    model = get_model(image_size=(image_height, stripe_width), channels=1)
     model.summary(line_length=200)
 
     # Load and preprocess an image from the dataset

@@ -18,7 +18,8 @@ class DataLoader:
 
     def __init__(self, images_path: str,
                  stripe_width: int,
-                 target_image_height: int):
+                 target_image_height: int,
+                 convert_to_grayscale: bool):
         """
         :param images_path: Path to a folder with images that should be used for generating the dataset.
         :param stripe_width: The width of the cropped vertical stripe from the rotated image.
@@ -27,6 +28,7 @@ class DataLoader:
         self.images_path = images_path
         self.stripe_width = stripe_width
         self.target_image_height = target_image_height
+        self.convert_to_grayscale = convert_to_grayscale
 
     def _parse_image_filename(self, filepath):
         filename = tf.strings.split(filepath, '/')[-1]
@@ -59,6 +61,8 @@ class DataLoader:
     def _load_image(self, parsed):
         image = tf.io.read_file(parsed['filepath'])
         image = tf.image.decode_jpeg(image, channels=3)
+        if self.convert_to_grayscale:
+            image = tf.image.rgb_to_grayscale(image)
         return image
 
     def _pad_image(self, image, parsed):
@@ -164,6 +168,7 @@ class DataLoader:
 
     def build_pipeline(self, batch_size: int):
         image_files = glob.glob(self.images_path)
+        assert(len(image_files) > 0)
         dataset = tf.data.Dataset.from_tensor_slices(image_files)
         dataset = dataset.shuffle(len(image_files))
         dataset = dataset.map(self._preprocess_image, num_parallel_calls=tf.data.experimental.AUTOTUNE)

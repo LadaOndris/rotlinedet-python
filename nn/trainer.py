@@ -32,24 +32,22 @@ class Trainer:
 
 def get_dataset(type: str, batch_size: int,
                 stripe_width: int, image_height: int):
-    data_loader = DataLoader(f'data/without_laser/{type}',
+    data_loader = DataLoader(f'data/synthetic/{type}/*',
                              stripe_width=stripe_width,
-                             line_width_range=(1, 12),
-                             length_range=(0.33, 1),
-                             intensity_range=(16, 128),
-                             target_image_height=image_height)
+                             target_image_height=image_height,
+                             convert_to_grayscale=True)
     dataset = data_loader.build_pipeline(batch_size=batch_size)
     return dataset
 
 
 if __name__ == "__main__":
-    stripe_width = 45
-    image_height = 480
+    stripe_width = 32
+    image_height = 640
     batch_size = 8
 
     train_dataset = get_dataset('train', batch_size, stripe_width, image_height)
     val_dataset = get_dataset('val', batch_size, stripe_width, image_height)
-    model = get_model(image_size=(image_height, stripe_width))
+    model = get_model(image_size=(image_height, stripe_width), channels=1)
     loss_fn = tf.keras.losses.BinaryCrossentropy()
 
     trainer = Trainer(model, train_dataset, val_dataset, loss_fn, 'Adam')
